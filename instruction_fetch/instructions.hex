@@ -1,0 +1,4 @@
+00200093 //addi x1, x0, 2. Expected result: register x1 = 2
+00300113 //addi x2, x0, 3. Expected result: register x2 = 3
+002081b3 //add x3, x1, x2. Expected result: register x3 = 5
+0000006f //jal x0, 0. Expected result: infinte trap loop
