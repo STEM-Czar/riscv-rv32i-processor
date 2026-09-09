@@ -1,0 +1,109 @@
+
+00500093  // addi x1, x0, 5
+00a00113  // addi x2, x0, 10
+002081b3  // add  x3, x1, x2
+40110233  // sub  x4, x2, x1
+0020f2b3  // and  x5, x1, x2
+0020e333  // or   x6, x1, x2
+0020c3b3  // xor  x7, x1, x2
+00209433  // sll  x8, x1, x2
+001154b3  // srl  x9, x2, x1
+40115533  // sra  x10, x2, x1
+0020a5b3  // slt  x11, x1, x2
+0020b633  // sltu x12, x1, x2
+
+fff00693  // addi x13, x0, -1
+4016d733  // sra  x14, x13, x1
+0016a7b3  // slt  x15, x13, x1
+0016b833  // sltu x16, x13, x1
+
+00708893  // addi x17, x1, 7
+ffe88913  // addi x18, x17, -2
+
+123459b7  // lui  x19, 0x12345
+00000a17  // auipc x20, 0
+
+00302023  // sw   x3, 0(x0)
+00002a83  // lw   x21, 0(x0)
+
+00108463  // beq  x1, x1, +8
+06300b13  // addi x22, x0, 99    // should be skipped
+00100b13  // addi x22, x0, 1
+
+00209463  // bne  x1, x2, +8
+06300b93  // addi x23, x0, 99    // should be skipped
+00200b93  // addi x23, x0, 2
+
+0016c463  // blt  x13, x1, +8
+06300c13  // addi x24, x0, 99    // should be skipped
+00300c13  // addi x24, x0, 3
+
+00d0d463  // bge  x1, x13, +8
+06300c93  // addi x25, x0, 99    // should be skipped
+00400c93  // addi x25, x0, 4
+
+0016e463  // bltu x13, x1, +8 [NOT TAKEN]
+06300d13  // addi x26, x0, 99    // executes because branch is false
+00500d13  // addi x26, x0, 5
+
+0016f463  // bgeu x13, x1, +8
+06300d93  // addi x27, x0, 99    // should be skipped
+00600d93  // addi x27, x0, 6
+
+00800e6f  // jal  x28, +8
+06300e93  // addi x29, x0, 99    // should be skipped
+00700e93  // addi x29, x0, 7
+
+00000f17  // auipc x30, 0
+008f0fe7  // jalr x31, 8(x30)
+06300093  // addi x1, x0, 99     // should be skipped
+00800113  // addi x2, x0, 8
+
+
+
+// Phase 1: Zero Register (x0) Hardwiring & Invariance
+00a00093  // addi x0, x0, 10      (Attempt write to x0; x0 must remain 0)
+000000b3  // add  x1, x0, x0      (x1 = x0 + x0 -> x1 = 0)
+000000ef  // jal  x0, 0           (Jump to self + 0 using x0 link reg; must not corrupt x0)
+
+// Phase 2: Shift Lower-5-Bit Masking & Max Values
+00100113  // addi x2, x0, 1       (x2 = 1)
+02000193  // addi x3, x0, 32      (x3 = 32; lower 5 bits = 0b00000 -> shift by 0)
+00311233  // sll  x4, x2, x3      (x4 = 1 << 0 = 1)
+02100193  // addi x3, x0, 33      (x3 = 33; lower 5 bits = 0b00001 -> shift by 1)
+003112b3  // sll  x5, x2, x3      (x5 = 1 << 1 = 2)
+
+// Phase 3: Signed Wraparound
+7ffff337  // lui  x6, 0x7ffff    (x6 = 0x7ffff000)
+7ff30313  // addi x6, x6, 2047    (x6 = 0x7fffffff -> max positive signed int)
+00130393  // addi x7, x6, 1       (x7 = 0x80000000 -> wraparound to min negative signed int)
+
+// Phase 4: Sub-word Memory Writes (SB / SH)
+deadb437  // lui  x8, 0xdeadb
+eef40413  // addi x8, x8, -273    (x8 = 0xdeadbeef)
+00802023  // sw   x8, 0(x0)       (Mem[0] = 0xdeadbeef)
+0ff00493  // addi x9, x0, 255     (x9 = 0x000000ff)
+009000a3  // sb   x9, 1(x0)       (Mem[1] = 0xff; Mem[0] becomes 0xdeadffef)
+
+// Phase 5: Sub-word Memory Loads (LB / LBU / LH / LHU)
+00000503  // lb   x10, 0(x0)      (Load byte at 0 -> 0xef -> sign-extended x10 = 0xffffffef)
+00004583  // lbu  x11, 0(x0)      (Load byte at 0 -> 0xef -> zero-extended x11 = 0x000000ef)
+00201603  // lh   x12, 2(x0)      (Load half at 2 -> 0xdead -> sign-extended x12 = 0xffffdead)
+00205683  // lhu  x13, 2(x0)      (Load half at 2 -> 0xdead -> zero-extended x13 = 0x0000dead)
+00002703  // lw   x14, 0(x0)      (Load word at 0 -> read back full modified word 0xdeadffef)
+
+// Phase 6: Negative Memory Base Offsets
+01000793  // addi x15, x0, 16     (Base ptr x15 = 16)
+0087aebd  // sw   x8, -4(x15)     (Mem[16 - 4 = 12] = 0xdeadbeef)
+0fc7a803  // lw   x16, -4(x15)    (Load from Mem[12] -> x16 = 0xdeadbeef)
+
+// Phase 7: Backward Loop Branching
+00300893  // addi x17, x0, 3      (Loop counter = 3)
+fff88893  // addi x17, x17, -1    (Loop start: x17--)
+fe089ce3  // bne  x17, x0, -8     (Branch back to loop start if x17 != 0)
+
+// Phase 8: Subroutine Link Jump Pair (JAL + JALR)
+00c009ef  // jal  x19, 12         (Jump forward 12 bytes to PC+12, x19 = return PC)
+00000013  // nop                  (Skipped)
+00000013  // nop                  (Skipped)
+000980e7  // jalr x0, 0(x19)      (Jump back using return link in x19)
