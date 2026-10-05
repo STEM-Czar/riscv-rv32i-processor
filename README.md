@@ -111,4 +111,4 @@ Through this project, I aim to develop practical experience in:
 
 ## Project Status
 
-Currently building and verifying fundamental hardware modules before integrating them into the complete RV32I 5-stage pipelined processor.
+Almost a complete RV32I 5-stage pipelined processor.
